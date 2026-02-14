@@ -164,7 +164,7 @@ extract_section <- function(text, patterns) {
   
   for (pattern in patterns) {
     matches <- str_match(text, regex(pattern, ignore_case = TRUE))
-    if (!is.na(matches[1, 2])) {
+    if (ncol(matches) >= 2 && !is.na(matches[1, 2])) {
       return(str_trim(matches[1, 2]))
     } else if (!is.na(matches[1, 1])) {
       return(str_trim(matches[1, 1]))

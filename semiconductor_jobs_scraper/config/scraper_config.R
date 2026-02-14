@@ -59,14 +59,24 @@ WORKDAY_SELECTORS <- list(
   posting_date = "[data-automation-id='postedOn']"
 )
 
-ORACLE_SELECTORS <- list(
-  job_list = "div.job-tile",
-  job_title = "h3.job-title",
-  job_location = "span.job-location",
-  job_link = "a.job-link",
-  next_page = "a.pagination-next",
-  job_description = "div.job-description",
-  posting_date = "span.posting-date"
+ORACLE_API_FIELDS <- list(
+  # REST API endpoint paths (appended to base URL root)
+  job_list_endpoint = "/hcmRestApi/resources/latest/recruitingCEJobRequisitions",
+  job_detail_endpoint = "/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails",
+  # JSON response field names
+  job_id = "Id",
+  job_title = "Title",
+  posting_date = "PostedDate",
+  primary_location = "PrimaryLocation",
+  work_location = "workLocation",
+  total_count = "TotalJobsCount",
+  requisition_list = "requisitionList",
+  # Detail endpoint field names
+  description = "ExternalDescriptionStr",
+  qualifications = "ExternalQualificationsStr",
+  responsibilities = "ExternalResponsibilitiesStr",
+  # Pagination
+  page_size = 25
 )
 
 # Export settings

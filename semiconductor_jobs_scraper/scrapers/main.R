@@ -12,6 +12,7 @@ library(here)
 source(here("config/scraper_config.R"))
 source(here("scrapers/utils.R"))
 source(here("scrapers/workday_scraper.R"))
+source(here("scrapers/oracle_scraper.R"))
 
 # Initialize database
 initialize_database <- function() {
@@ -36,6 +37,16 @@ initialize_database <- function() {
     }
   }
   
+  # Migrate: add new columns if they don't exist yet
+  existing_cols <- dbListFields(con, "jobs")
+  new_cols <- c("job_identification", "job_category", "degree_level", "ecl_gtc_required")
+  for (col in new_cols) {
+    if (!(col %in% existing_cols)) {
+      dbExecute(con, paste("ALTER TABLE jobs ADD COLUMN", col, "TEXT"))
+      log_message(paste("Added column to jobs table:", col))
+    }
+  }
+
   dbDisconnect(con)
   log_message("Database initialized successfully")
 }
@@ -143,7 +154,7 @@ complete_scrape_run <- function(run_id, jobs_found, jobs_new, jobs_updated, stat
      SET jobs_found = ?, jobs_new = ?, jobs_updated = ?, 
          status = ?, error_message = ?, duration_seconds = ?
      WHERE run_id = ?",
-    params = list(jobs_found, jobs_new, jobs_updated, status, error, duration, run_id)
+    params = list(jobs_found, jobs_new, jobs_updated, status, if (is.null(error)) NA_character_ else error, duration, run_id)
   )
   
   dbDisconnect(con)
@@ -178,6 +189,11 @@ save_jobs_to_db <- function(jobs_df, company_name, run_id) {
       params = list(job$job_url)
     )
     
+    # Helper to safely get a column value (NA if column doesn't exist)
+    safe_col <- function(df, col_name) {
+      if (col_name %in% names(df)) df[[col_name]] else NA_character_
+    }
+
     if (nrow(existing) == 0) {
       # Insert new job
       dbExecute(
@@ -185,24 +201,30 @@ save_jobs_to_db <- function(jobs_df, company_name, run_id) {
         "INSERT INTO jobs (
           company_id, job_title, job_url, location,
           job_responsibilities, min_education, min_experience,
-          preferred_qualifications, salary_range, posting_date, scrape_run_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          preferred_qualifications, salary_range,
+          job_identification, job_category, degree_level, ecl_gtc_required,
+          posting_date, scrape_run_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         params = list(
           company_id,
           sanitize_text(job$job_title),
           job$job_url,
           sanitize_text(job$location),
-          sanitize_text(job$job_responsibilities),
-          sanitize_text(job$min_education),
-          sanitize_text(job$min_experience),
-          sanitize_text(job$preferred_qualifications),
-          sanitize_text(job$salary_range),
+          sanitize_text(safe_col(job, "job_responsibilities")),
+          sanitize_text(safe_col(job, "min_education")),
+          sanitize_text(safe_col(job, "min_experience")),
+          sanitize_text(safe_col(job, "preferred_qualifications")),
+          sanitize_text(safe_col(job, "salary_range")),
+          sanitize_text(safe_col(job, "job_identification")),
+          sanitize_text(safe_col(job, "job_category")),
+          sanitize_text(safe_col(job, "degree_level")),
+          sanitize_text(safe_col(job, "ecl_gtc_required")),
           job$posting_date,
           run_id
         )
       )
       jobs_new <- jobs_new + 1
-      
+
     } else {
       # Update existing job
       dbExecute(
@@ -210,16 +232,22 @@ save_jobs_to_db <- function(jobs_df, company_name, run_id) {
         "UPDATE jobs SET
           job_title = ?, location = ?, job_responsibilities = ?,
           min_education = ?, min_experience = ?, preferred_qualifications = ?,
-          salary_range = ?, posting_date = ?, updated_at = CURRENT_TIMESTAMP
+          salary_range = ?,
+          job_identification = ?, job_category = ?, degree_level = ?, ecl_gtc_required = ?,
+          posting_date = ?, updated_at = CURRENT_TIMESTAMP
          WHERE job_id = ?",
         params = list(
           sanitize_text(job$job_title),
           sanitize_text(job$location),
-          sanitize_text(job$job_responsibilities),
-          sanitize_text(job$min_education),
-          sanitize_text(job$min_experience),
-          sanitize_text(job$preferred_qualifications),
-          sanitize_text(job$salary_range),
+          sanitize_text(safe_col(job, "job_responsibilities")),
+          sanitize_text(safe_col(job, "min_education")),
+          sanitize_text(safe_col(job, "min_experience")),
+          sanitize_text(safe_col(job, "preferred_qualifications")),
+          sanitize_text(safe_col(job, "salary_range")),
+          sanitize_text(safe_col(job, "job_identification")),
+          sanitize_text(safe_col(job, "job_category")),
+          sanitize_text(safe_col(job, "degree_level")),
+          sanitize_text(safe_col(job, "ecl_gtc_required")),
           job$posting_date,
           existing$job_id[1]
         )
@@ -241,7 +269,10 @@ scrape_company <- function(company_name, fetch_details = TRUE) {
   log_message(paste("\n========================================"))
   log_message(paste("Starting scrape for:", company_name))
   log_message(paste("========================================\n"))
-  
+
+  # Ensure database is initialized
+  initialize_database()
+
   # Load company info
   companies <- load_companies()
   company_info <- companies %>% filter(company_name == !!company_name)
@@ -252,7 +283,10 @@ scrape_company <- function(company_name, fetch_details = TRUE) {
   }
   
   company_info <- company_info[1, ]
-  
+
+  # Ensure company exists in database
+  sync_companies_to_db(company_info)
+
   # Start scrape run
   run_id <- start_scrape_run(company_name)
   
@@ -263,9 +297,7 @@ scrape_company <- function(company_name, fetch_details = TRUE) {
       scrape_workday_company(company_name, company_info$careers_url, fetch_details)
       
     } else if (company_info$platform == "oracle") {
-      # Oracle scraper (to be implemented)
-      log_message("Oracle scraper not yet implemented", level = "WARN")
-      data.frame()
+      scrape_oracle_company(company_name, company_info$careers_url, fetch_details)
       
     } else {
       # Custom scrapers
