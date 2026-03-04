@@ -230,12 +230,20 @@ parse_date_string <- function(date_string) {
     }
   }
   
-  # Handle relative dates (e.g., "Posted 2 days ago")
+  # Handle "Posted Today" or "Posted Yesterday"
+  if (str_detect(date_string, "(?i)today")) {
+    return(Sys.Date())
+  }
+  if (str_detect(date_string, "(?i)yesterday")) {
+    return(Sys.Date() - days(1))
+  }
+
+  # Handle relative dates (e.g., "Posted 2 days ago", "Posted 30+ Days Ago")
   if (str_detect(date_string, "(?i)(day|week|month)s? ago")) {
-    
+
     number <- as.numeric(str_extract(date_string, "\\d+"))
     if (is.na(number)) number <- 1
-    
+
     if (str_detect(date_string, "(?i)day")) {
       return(Sys.Date() - days(number))
     } else if (str_detect(date_string, "(?i)week")) {
@@ -244,7 +252,7 @@ parse_date_string <- function(date_string) {
       return(Sys.Date() - months(number))
     }
   }
-  
+
   # If all else fails, use today
   log_message(paste("Could not parse date:", date_string), level = "DEBUG")
   return(Sys.Date())
