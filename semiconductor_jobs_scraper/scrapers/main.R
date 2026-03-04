@@ -13,6 +13,7 @@ source(here("config/scraper_config.R"))
 source(here("scrapers/utils.R"))
 source(here("scrapers/workday_scraper.R"))
 source(here("scrapers/oracle_scraper.R"))
+source(here("scrapers/successfactors_scraper.R"))
 
 # Initialize database
 initialize_database <- function() {
@@ -39,7 +40,7 @@ initialize_database <- function() {
   
   # Migrate: add new columns if they don't exist yet
   existing_cols <- dbListFields(con, "jobs")
-  new_cols <- c("job_identification", "job_category", "degree_level", "ecl_gtc_required")
+  new_cols <- c("job_identification", "job_category", "degree_level", "ecl_gtc_required", "essential_skills")
   for (col in new_cols) {
     if (!(col %in% existing_cols)) {
       dbExecute(con, paste("ALTER TABLE jobs ADD COLUMN", col, "TEXT"))
@@ -203,8 +204,8 @@ save_jobs_to_db <- function(jobs_df, company_name, run_id) {
           job_responsibilities, min_education, min_experience,
           preferred_qualifications, salary_range,
           job_identification, job_category, degree_level, ecl_gtc_required,
-          posting_date, scrape_run_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          essential_skills, posting_date, scrape_run_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         params = list(
           company_id,
           sanitize_text(job$job_title),
@@ -219,6 +220,7 @@ save_jobs_to_db <- function(jobs_df, company_name, run_id) {
           sanitize_text(safe_col(job, "job_category")),
           sanitize_text(safe_col(job, "degree_level")),
           sanitize_text(safe_col(job, "ecl_gtc_required")),
+          sanitize_text(safe_col(job, "essential_skills")),
           job$posting_date,
           run_id
         )
@@ -234,7 +236,7 @@ save_jobs_to_db <- function(jobs_df, company_name, run_id) {
           min_education = ?, min_experience = ?, preferred_qualifications = ?,
           salary_range = ?,
           job_identification = ?, job_category = ?, degree_level = ?, ecl_gtc_required = ?,
-          posting_date = ?, updated_at = CURRENT_TIMESTAMP
+          essential_skills = ?, posting_date = ?, updated_at = CURRENT_TIMESTAMP
          WHERE job_id = ?",
         params = list(
           sanitize_text(job$job_title),
@@ -248,6 +250,7 @@ save_jobs_to_db <- function(jobs_df, company_name, run_id) {
           sanitize_text(safe_col(job, "job_category")),
           sanitize_text(safe_col(job, "degree_level")),
           sanitize_text(safe_col(job, "ecl_gtc_required")),
+          sanitize_text(safe_col(job, "essential_skills")),
           job$posting_date,
           existing$job_id[1]
         )
@@ -298,7 +301,10 @@ scrape_company <- function(company_name, fetch_details = TRUE) {
       
     } else if (company_info$platform == "oracle") {
       scrape_oracle_company(company_name, company_info$careers_url, fetch_details)
-      
+
+    } else if (company_info$platform == "successfactors") {
+      scrape_successfactors_company(company_name, company_info$careers_url, fetch_details)
+
     } else {
       # Custom scrapers
       log_message(paste("Platform", company_info$platform, "not yet implemented"), level = "WARN")

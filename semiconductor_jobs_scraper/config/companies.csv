@@ -1,0 +1,11 @@
+company_name,careers_url,platform,active
+Applied Materials,https://amat.wd1.myworkdayjobs.com/External,workday,TRUE
+NXP Semiconductors,https://nxp.wd3.myworkdayjobs.com/careers,workday,TRUE
+Texas Instruments,https://edbz.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/jobs,oracle,TRUE
+Samsung Austin Semiconductor,https://sec.wd3.myworkdayjobs.com/Samsung_Careers,workday,TRUE
+SkyWater Technology,https://www.skywatertechnology.com/careers/,custom_skywater,TRUE
+Tokyo Electron,https://www.tel.com/careers/careercenter/index.html,custom_tel,TRUE
+Texas Institute for Electronics,https://utaustin.wd1.myworkdayjobs.com/UTstaff?q=Texas+Institute+for+Electronics,workday,TRUE
+RTX,https://globalhr.wd5.myworkdayjobs.com/REC_RTX_Ext_Gateway?q=TX,workday,TRUE
+Northrop Grumman,"https://ngc.wd1.myworkdayjobs.com/Northrop_Grumman_External_Site?facet_jobFamilyGroup=a111b0a898f10171f1426263e7007578,a111b0a898f101c965a71164e7008f78,a111b0a898f101fd03f53064e7009378&states=Maryland,California,Florida",workday,TRUE
+Qorvo,https://careers.qorvo.com,successfactors,TRUE
